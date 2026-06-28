@@ -312,10 +312,38 @@
   .btn-block { display: block; width: 100%; text-align: center; padding: 11px; margin-top: 8px; }
 
   @media (max-width: 700px) {
-    .sidebar { display: none; }
     .stats-row { grid-template-columns: 1fr 1fr; }
     .form-grid, .form-grid3 { grid-template-columns: 1fr; }
+    .sidebar { display: none; position: fixed; top: 57px; left: 0; bottom: 0; z-index: 200; width: 220px; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
+    .sidebar.open { display: block; }
+    .layout { flex-direction: column; }
+    .main { padding: 12px; }
+    .res-row { flex-wrap: wrap; }
+    .res-time { min-width: 80px; }
   }
+
+  .hamburger {
+    display: none;
+    background: none;
+    border: none;
+    color: var(--gold);
+    font-size: 22px;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+  }
+  @media (max-width: 700px) {
+    .hamburger { display: block; }
+  }
+
+  .overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 199;
+  }
+  .overlay.open { display: block; }
 </style>
 </head>
 <body>
@@ -345,12 +373,14 @@
 <div id="app" style="display:none">
   <header>
     <div class="header-left">
+      <button class="hamburger" onclick="toggleMenu()" id="hamburger-btn">☰</button>
       <span class="admin-badge">ADMIN</span>
       <h1>Bolão dos Bestas</h1>
     </div>
     <button class="logout-btn" onclick="adminLogout()">SAIR ⏏</button>
   </header>
 
+  <div class="overlay" id="menu-overlay" onclick="toggleMenu()"></div>
   <div class="layout">
     <nav class="sidebar">
       <button class="nav-item active" onclick="abrirPanel('panel-dashboard',this)">📊 Dashboard</button>
@@ -494,10 +524,39 @@
             <div class="form-row"><label>ID do jogo (ex: j17)</label><input type="text" id="nova-id" placeholder="j17"></div>
             <div class="form-row"><label>Time 1</label><input type="text" id="nova-time1" placeholder="Brasil"></div>
             <div class="form-row"><label>Time 2</label><input type="text" id="nova-time2" placeholder="Argentina"></div>
-            <div class="form-row"><label>Data (ex: 05/07 16h00)</label><input type="text" id="nova-data" placeholder="05/07 16h00"></div>
-            <div class="form-row"><label>Data/hora ISO (horário Brasília)</label><input type="text" id="nova-ts" placeholder="2026-07-05T16:00:00-03:00"></div>
+            <div class="form-row"><label>Data/hora do jogo (horário Brasília)</label><input type="datetime-local" id="nova-ts"></div>
+            <div class="form-row">
+              <label>Fechamento manual <span style="color:var(--gray);font-weight:400">(opcional — padrão: 3h antes do jogo)</span></label>
+              <input type="datetime-local" id="nova-fecha">
+            </div>
           </div>
+          <div id="nova-preview" style="font-size:12px;color:var(--gray);margin:8px 0 12px;min-height:16px"></div>
           <button class="btn btn-gold" onclick="adicionarJogo()">ADICIONAR JOGO</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">✏️ Editar jogo existente (fase futura)</div>
+          <div class="form-row">
+            <label>Selecionar jogo</label>
+            <select id="edit-jogo-sel" onchange="preencherEdicaoJogo()">
+              <option value="">— selecione —</option>
+            </select>
+          </div>
+          <div id="edit-jogo-form" style="display:none">
+            <div class="form-grid">
+              <div class="form-row"><label>Time 1</label><input type="text" id="edit-time1"></div>
+              <div class="form-row"><label>Time 2</label><input type="text" id="edit-time2"></div>
+              <div class="form-row"><label>Data/hora do jogo (horário Brasília)</label><input type="datetime-local" id="edit-ts"></div>
+              <div class="form-row">
+                <label>Fechamento manual <span style="color:var(--gray);font-weight:400">(opcional)</span></label>
+                <input type="datetime-local" id="edit-fecha">
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:4px">
+              <button class="btn btn-gold" onclick="salvarEdicaoJogo()">💾 SALVAR ALTERAÇÕES</button>
+              <button class="btn btn-red" onclick="deletarJogoFuturo()">🗑️ REMOVER JOGO</button>
+            </div>
+          </div>
         </div>
         <div class="card">
           <div class="card-title">🥇 Status campeão/vice</div>
@@ -721,7 +780,7 @@ async function carregarDashboard() {
     // Próximos fechamentos
     const agora = Date.now();
     const proximos = todosJogos
-      .filter(j => j.ts - 3*3600000 > agora)
+      .filter(j => j.ts - 1*3600000 > agora)
       .sort((a,b) => a.ts - b.ts)
       .slice(0, 5);
 
@@ -731,7 +790,7 @@ async function carregarDashboard() {
     } else {
       pf.innerHTML = proximos.map(j => {
         const fecha = new Date(j.ts - 3*3600000);
-        const diff = j.ts - 3*3600000 - agora;
+        const diff = j.ts - 1*3600000 - agora;
         const horas = Math.floor(diff/3600000);
         const mins = Math.floor((diff%3600000)/60000);
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);font-size:13px">
@@ -760,7 +819,7 @@ async function carregarDashboard() {
       cvDiv.innerHTML = '<div style="font-size:12px;color:var(--gray);margin-bottom:8px">Top 5 campeões apostados:</div>' +
         campeoes.map(([k,v]) => `<div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0">
           <span>${k.replace('_camp','')}</span>
-          <span style="color:var(--gold);font-family:'Bebas Neue';font-size:16px">${v} apoста${v>1?'s':''}</span>
+          <span style="color:var(--gold);font-family:'Bebas Neue';font-size:16px">${v} aposta${v>1?'s':''}</span>
         </div>`).join('');
     }
   } catch(e) { console.error('Dashboard error:', e); }
@@ -1087,6 +1146,7 @@ async function carregarFases() {
   const jogosFirebase = (await fbGet('config/jogos_fases')) || {};
   todosJogos = [...JOGOS_16AVOS, ...Object.values(jogosFirebase)];
   preencherSelectJogos();
+  preencherEditJogoSelect();
 
   const cfgJogos = (await fbGet('config/jogos')) || {};
   const agora = Date.now();
@@ -1129,28 +1189,147 @@ async function setCvStatus(status) {
   } catch(e) { toast('Erro', true); }
 }
 
+function tsParaDisplay(ts) {
+  const d = new Date(ts);
+  const dia = String(d.getDate()).padStart(2,'0');
+  const mes = String(d.getMonth()+1).padStart(2,'0');
+  const h = String(d.getHours()).padStart(2,'0');
+  const m = String(d.getMinutes()).padStart(2,'0');
+  return `${dia}/${mes} ${h}h${m === '00' ? '00' : m}`;
+}
+
+function tsParaDatetimeLocal(ts) {
+  const d = new Date(ts);
+  const pad = n => String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Preview ao digitar
+document.addEventListener('DOMContentLoaded', () => {
+  const novaTs = document.getElementById('nova-ts');
+  const novaFecha = document.getElementById('nova-fecha');
+  if (novaTs) {
+    novaTs.addEventListener('change', atualizarPreviewJogo);
+    novaFecha.addEventListener('change', atualizarPreviewJogo);
+  }
+});
+
+function atualizarPreviewJogo() {
+  const tsStr = document.getElementById('nova-ts').value;
+  const fechaStr = document.getElementById('nova-fecha').value;
+  const prev = document.getElementById('nova-preview');
+  if (!tsStr) { prev.textContent = ''; return; }
+  const ts = new Date(tsStr).getTime();
+  const fechaTs = fechaStr ? new Date(fechaStr).getTime() : ts - 3*3600000;
+  prev.innerHTML = `📅 Exibição: <strong style="color:var(--white)">${tsParaDisplay(ts)}</strong> &nbsp;·&nbsp; 🔒 Fecha: <strong style="color:var(--white)">${tsParaDisplay(fechaTs)}</strong>`;
+}
+
 async function adicionarJogo() {
   const fase = document.getElementById('nova-fase').value;
   const id = document.getElementById('nova-id').value.trim();
   const time1 = document.getElementById('nova-time1').value.trim();
   const time2 = document.getElementById('nova-time2').value.trim();
-  const data = document.getElementById('nova-data').value.trim();
-  const tsStr = document.getElementById('nova-ts').value.trim();
+  const tsStr = document.getElementById('nova-ts').value;
+  const fechaStr = document.getElementById('nova-fecha').value;
 
-  if (!id || !time1 || !time2 || !data || !tsStr) return toast('Preencha todos os campos', true);
+  if (!id || !time1 || !time2 || !tsStr) return toast('Preencha fase, ID, times e data/hora do jogo', true);
 
   const ts = new Date(tsStr).getTime();
   if (isNaN(ts)) return toast('Data/hora inválida', true);
 
+  const fechaTs = fechaStr ? new Date(fechaStr).getTime() : null;
+  const data = tsParaDisplay(ts);
+
   const novoJogo = { id, fase, time1, time2, data, ts };
+  if (fechaTs) novoJogo.fecha_em = fechaTs;
 
   try {
     await fbPatch(`config/jogos_fases/${id}`, novoJogo);
     todosJogos.push(novoJogo);
     preencherSelectJogos();
+    preencherSelectPalpites();
+    preencherEditJogoSelect();
     toast(`Jogo ${id} adicionado!`);
-    ['nova-id','nova-time1','nova-time2','nova-data','nova-ts'].forEach(f => document.getElementById(f).value = '');
+    ['nova-id','nova-time1','nova-time2','nova-ts','nova-fecha'].forEach(f => document.getElementById(f).value = '');
+    document.getElementById('nova-preview').textContent = '';
   } catch(e) { toast('Erro ao adicionar jogo', true); }
+}
+
+function preencherEditJogoSelect() {
+  const sel = document.getElementById('edit-jogo-sel');
+  if (!sel) return;
+  const atual = sel.value;
+  // Só jogos de fases futuras (não os 16 avos fixos)
+  const jogosFuturos = todosJogos.filter(j => j.fase !== '16 Avos');
+  sel.innerHTML = '<option value="">— selecione —</option>';
+  jogosFuturos.forEach(j => {
+    sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2}</option>`;
+  });
+  if (atual) sel.value = atual;
+}
+
+function preencherEdicaoJogo() {
+  const id = document.getElementById('edit-jogo-sel').value;
+  const form = document.getElementById('edit-jogo-form');
+  if (!id) { form.style.display = 'none'; return; }
+
+  const jogo = todosJogos.find(j => j.id === id);
+  if (!jogo) return;
+
+  document.getElementById('edit-time1').value = jogo.time1;
+  document.getElementById('edit-time2').value = jogo.time2;
+  document.getElementById('edit-ts').value = tsParaDatetimeLocal(jogo.ts);
+  document.getElementById('edit-fecha').value = jogo.fecha_em ? tsParaDatetimeLocal(jogo.fecha_em) : '';
+  form.style.display = 'block';
+}
+
+async function salvarEdicaoJogo() {
+  const id = document.getElementById('edit-jogo-sel').value;
+  if (!id) return;
+
+  const time1 = document.getElementById('edit-time1').value.trim();
+  const time2 = document.getElementById('edit-time2').value.trim();
+  const tsStr = document.getElementById('edit-ts').value;
+  const fechaStr = document.getElementById('edit-fecha').value;
+
+  if (!time1 || !time2 || !tsStr) return toast('Preencha times e data/hora', true);
+
+  const ts = new Date(tsStr).getTime();
+  if (isNaN(ts)) return toast('Data/hora inválida', true);
+
+  const fechaTs = fechaStr ? new Date(fechaStr).getTime() : null;
+  const data = tsParaDisplay(ts);
+
+  const jogo = todosJogos.find(j => j.id === id);
+  const fase = jogo?.fase || '';
+
+  const atualizado = { id, fase, time1, time2, data, ts };
+  if (fechaTs) atualizado.fecha_em = fechaTs;
+  else atualizado.fecha_em = null;
+
+  try {
+    await fbSet(`config/jogos_fases/${id}`, atualizado);
+    const idx = todosJogos.findIndex(j => j.id === id);
+    if (idx >= 0) todosJogos[idx] = atualizado;
+    preencherSelectJogos();
+    preencherSelectPalpites();
+    toast(`Jogo ${id} atualizado!`);
+  } catch(e) { toast('Erro ao salvar', true); }
+}
+
+async function deletarJogoFuturo() {
+  const id = document.getElementById('edit-jogo-sel').value;
+  if (!id) return;
+  if (!confirm(`Remover o jogo ${id}? Os palpites associados serão mantidos mas o jogo sumirá da lista.`)) return;
+  try {
+    await fbDelete(`config/jogos_fases/${id}`);
+    todosJogos = todosJogos.filter(j => j.id !== id);
+    preencherSelectJogos();
+    preencherSelectPalpites();
+    preencherEditJogoSelect();
+    document.getElementById('edit-jogo-form').style.display = 'none';
+    toast(`Jogo ${id} removido`);
+  } catch(e) { toast('Erro ao remover', true); }
 }
 
 // ===================== CONFIG =====================
@@ -1170,12 +1349,23 @@ async function limparRankingCache() {
   } catch(e) { toast('Erro', true); }
 }
 
+// ===================== MOBILE MENU =====================
+function toggleMenu() {
+  const sidebar = document.querySelector('.sidebar');
+  const overlay = document.getElementById('menu-overlay');
+  sidebar.classList.toggle('open');
+  overlay.classList.toggle('open');
+}
+
 // ===================== PANELS / TABS =====================
 function abrirPanel(panelId, btn) {
   document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
   document.getElementById(panelId).classList.add('active');
   btn.classList.add('active');
+  // Fecha menu mobile ao navegar
+  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('menu-overlay').classList.remove('open');
   if (panelId === 'panel-palpites') {
     preencherSelectPalpites();
     preencherSelectParticipantes();

@@ -1038,12 +1038,14 @@ const JOGOS_16AVOS = [
 
 function jogoAberto(jogo) {
   const agora = Date.now();
-  const fechamento = jogo.ts - 3 * 60 * 60 * 1000;
 
-  // Verifica também se admin fechou manualmente
+  // Verifica se admin fechou/abriu manualmente via status
   const cfg = (configData.jogos || {})[jogo.id] || {};
   if (cfg.status === 'fechado') return false;
   if (cfg.status === 'aberto') return true;
+
+  // Usa fecha_em customizado se existir, senão 3h antes do jogo
+  const fechamento = jogo.fecha_em ? jogo.fecha_em : jogo.ts - 1 * 60 * 60 * 1000;
   return agora < fechamento;
 }
 
@@ -1160,7 +1162,7 @@ function renderPalpiteFeito(palpite, jogo) {
 }
 
 function formatarFechamento(ts) {
-  const d = new Date(ts - 3 * 60 * 60 * 1000);
+  const d = new Date(ts - 1 * 60 * 60 * 1000);
   return d.toLocaleDateString('pt-BR', {day:'2-digit',month:'2-digit'}) + ' ' +
          d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
 }
