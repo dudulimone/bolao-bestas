@@ -633,6 +633,7 @@
     <div class="tab-nav">
       <button class="tab-btn active" onclick="abrirTab('tab-apostas', this)">APOSTAS</button>
       <button class="tab-btn" onclick="abrirTab('tab-ranking', this)">RANKING</button>
+      <button class="tab-btn" onclick="abrirTab('tab-galera', this)">GALERA</button>
       <button class="tab-btn" onclick="abrirTab('tab-info', this)">REGRAS</button>
     </div>
 
@@ -688,6 +689,22 @@
           <div class="section-label">Premiação estimada</div>
           <div id="ranking-pote"></div>
         </div>
+      </div>
+    </div>
+
+    <!-- TAB: GALERA -->
+    <div id="tab-galera" class="tab-content" style="display:none">
+      <div class="card">
+        <div class="card-title">👀 Palpites da galera</div>
+        <div style="font-size:11px;color:var(--gray);margin-bottom:12px">Apenas rodadas já encerradas</div>
+        <div class="form-row" style="margin-bottom:14px">
+          <select id="sel-jogo-galera" onchange="carregarPalpitesGalera()"
+            style="width:100%;background:var(--card2);border:1px solid var(--border);border-radius:3px;color:var(--white);font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;outline:none">
+            <option value="">— selecione um jogo —</option>
+          </select>
+        </div>
+        <div id="galera-loading" class="loading" style="display:none"><div class="spinner"></div></div>
+        <div id="galera-content"></div>
       </div>
     </div>
 
@@ -1268,6 +1285,96 @@ async function calcularPremiacao() {
   } catch(e) {}
 }
 
+// ===================== GALERA =====================
+function preencherSelectGalera() {
+  const sel = document.getElementById('sel-jogo-galera');
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— selecione um jogo —</option>';
+
+  // Só jogos fechados
+  const agora = Date.now();
+  const fechados = JOGOS_16AVOS.filter(j => {
+    const cfg = (configData.jogos || {})[j.id] || {};
+    if (cfg.status === 'aberto') return false;
+    if (cfg.status === 'fechado') return true;
+    const fecha = j.fecha_em ? j.fecha_em : j.ts - 1 * 60 * 60 * 1000;
+    return agora >= fecha;
+  });
+
+  // Adiciona fases futuras fechadas
+  const jogosFirebase = configData.jogos_fases || {};
+  const futuros = Object.values(jogosFirebase).filter(j => {
+    const cfg = (configData.jogos || {})[j.id] || {};
+    if (cfg.status === 'aberto') return false;
+    if (cfg.status === 'fechado') return true;
+    const fecha = j.fecha_em ? j.fecha_em : j.ts - 1 * 60 * 60 * 1000;
+    return agora >= fecha;
+  });
+
+  [...fechados, ...futuros].forEach(j => {
+    sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2}</option>`;
+  });
+}
+
+async function carregarPalpitesGalera() {
+  const jogoId = document.getElementById('sel-jogo-galera').value;
+  const container = document.getElementById('galera-content');
+  const loading = document.getElementById('galera-loading');
+
+  if (!jogoId) { container.innerHTML = ''; return; }
+
+  // Verifica se jogo está realmente fechado
+  const todosJogos = [...JOGOS_16AVOS, ...Object.values(configData.jogos_fases || {})];
+  const jogo = todosJogos.find(j => j.id === jogoId);
+  if (!jogo || jogoAberto(jogo)) {
+    container.innerHTML = '<div style="font-size:12px;color:var(--gray);text-align:center;padding:10px">Este jogo ainda está aberto para apostas.</div>';
+    return;
+  }
+
+  loading.style.display = 'block';
+  container.innerHTML = '';
+
+  try {
+    const [users, palpites] = await Promise.all([
+      fbGet('users'),
+      fbGet('palpites')
+    ]);
+
+    const usersArr = Object.values(users || {}).sort((a,b) => a.nome.localeCompare(b.nome));
+
+    let html = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="text-align:left;padding:8px 10px;color:var(--gray);font-family:'Bebas Neue';font-size:12px;letter-spacing:1.5px;border-bottom:1px solid var(--border)">Nome</th>
+        <th style="text-align:center;padding:8px 10px;color:var(--gray);font-family:'Bebas Neue';font-size:12px;letter-spacing:1.5px;border-bottom:1px solid var(--border)">Palpite</th>
+      </tr></thead><tbody>`;
+
+    usersArr.forEach(u => {
+      const p = (palpites || {})[u.userKey]?.[jogoId];
+      const isMe = u.userKey === currentUser.userKey;
+
+      let palpiteStr = '<span style="color:var(--gray)">—</span>';
+      if (p && p.gols1 !== undefined) {
+        palpiteStr = `<strong>${jogo.time1} ${p.gols1} × ${p.gols2} ${jogo.time2}</strong>`;
+        if (p.penalti) palpiteStr += `<br><span style="font-size:11px;color:var(--gold)">${p.penalti} nos pênaltis</span>`;
+      }
+
+      html += `<tr style="${isMe ? 'background:rgba(255,215,0,0.06)' : ''}">
+        <td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.04)">
+          ${u.nome} ${isMe ? '<span class="me-tag">VOCÊ</span>' : ''}
+        </td>
+        <td style="padding:9px 10px;border-bottom:1px solid rgba(255,255,255,0.04);text-align:center">${palpiteStr}</td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    loading.style.display = 'none';
+    container.innerHTML = html;
+  } catch(e) {
+    loading.style.display = 'none';
+    container.innerHTML = '<div style="font-size:12px;color:var(--gray);text-align:center">Erro ao carregar.</div>';
+  }
+}
+
 // ===================== TABS =====================
 function abrirTab(tabId, btn) {
   document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
@@ -1275,6 +1382,7 @@ function abrirTab(tabId, btn) {
   document.getElementById(tabId).style.display = 'block';
   btn.classList.add('active');
   if (tabId === 'tab-ranking') renderizarRanking();
+  if (tabId === 'tab-galera') preencherSelectGalera();
 }
 
 // ===================== UI UTILS =====================

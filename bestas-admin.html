@@ -311,39 +311,60 @@
   .msg-error.show { display: block; }
   .btn-block { display: block; width: 100%; text-align: center; padding: 11px; margin-top: 8px; }
 
-  @media (max-width: 700px) {
-    .stats-row { grid-template-columns: 1fr 1fr; }
-    .form-grid, .form-grid3 { grid-template-columns: 1fr; }
-    .sidebar { display: none; position: fixed; top: 57px; left: 0; bottom: 0; z-index: 200; width: 220px; overflow-y: auto; box-shadow: 4px 0 20px rgba(0,0,0,0.5); }
-    .sidebar.open { display: block; }
-    .layout { flex-direction: column; }
-    .main { padding: 12px; }
-    .res-row { flex-wrap: wrap; }
-    .res-time { min-width: 80px; }
-  }
-
   .hamburger {
     display: none;
     background: none;
-    border: none;
+    border: 1px solid var(--border);
     color: var(--gold);
-    font-size: 22px;
+    font-size: 20px;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 5px 10px;
+    border-radius: 3px;
     line-height: 1;
   }
-  @media (max-width: 700px) {
-    .hamburger { display: block; }
+
+  .mobile-nav {
+    display: none;
+    position: fixed;
+    top: 57px;
+    left: 0; right: 0;
+    background: var(--card);
+    border-bottom: 2px solid var(--gold);
+    z-index: 300;
+    padding: 8px 0;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.8);
   }
+  .mobile-nav.open { display: block; }
+  .mobile-nav .nav-item {
+    display: block;
+    width: 100%;
+    padding: 13px 20px;
+    font-size: 15px;
+    border-left: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .mobile-nav .nav-item:last-child { border-bottom: none; }
+  .mobile-nav .nav-item.active { color: var(--gold); background: rgba(255,215,0,0.08); }
 
   .overlay {
     display: none;
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.6);
-    z-index: 199;
+    background: rgba(0,0,0,0.5);
+    z-index: 299;
   }
   .overlay.open { display: block; }
+
+  @media (max-width: 700px) {
+    .sidebar { display: none !important; }
+    .hamburger { display: block; }
+    .stats-row { grid-template-columns: 1fr 1fr; }
+    .form-grid, .form-grid3 { grid-template-columns: 1fr; }
+    .layout { flex-direction: column; }
+    .main { padding: 12px; }
+    .res-row { flex-wrap: wrap; }
+    .res-time { min-width: 80px; }
+  }
 </style>
 </head>
 <body>
@@ -381,6 +402,15 @@
   </header>
 
   <div class="overlay" id="menu-overlay" onclick="toggleMenu()"></div>
+  <nav class="mobile-nav" id="mobile-nav">
+    <button class="nav-item active" onclick="abrirPanel('panel-dashboard',this)">📊 Dashboard</button>
+    <button class="nav-item" onclick="abrirPanel('panel-participantes',this)">👥 Participantes</button>
+    <button class="nav-item" onclick="abrirPanel('panel-resultados',this)">⚽ Resultados</button>
+    <button class="nav-item" onclick="abrirPanel('panel-ranking',this)">🏅 Ranking</button>
+    <button class="nav-item" onclick="abrirPanel('panel-fases',this)">⚔️ Fases</button>
+    <button class="nav-item" onclick="abrirPanel('panel-palpites',this)">📋 Palpites</button>
+    <button class="nav-item" onclick="abrirPanel('panel-config',this)">⚙️ Config</button>
+  </nav>
   <div class="layout">
     <nav class="sidebar">
       <button class="nav-item active" onclick="abrirPanel('panel-dashboard',this)">📊 Dashboard</button>
@@ -1351,9 +1381,9 @@ async function limparRankingCache() {
 
 // ===================== MOBILE MENU =====================
 function toggleMenu() {
-  const sidebar = document.querySelector('.sidebar');
+  const nav = document.getElementById('mobile-nav');
   const overlay = document.getElementById('menu-overlay');
-  sidebar.classList.toggle('open');
+  nav.classList.toggle('open');
   overlay.classList.toggle('open');
 }
 
@@ -1364,8 +1394,12 @@ function abrirPanel(panelId, btn) {
   document.getElementById(panelId).classList.add('active');
   btn.classList.add('active');
   // Fecha menu mobile ao navegar
-  document.querySelector('.sidebar').classList.remove('open');
+  document.getElementById('mobile-nav').classList.remove('open');
   document.getElementById('menu-overlay').classList.remove('open');
+  // Sync mobile nav active state
+  document.querySelectorAll('#mobile-nav .nav-item').forEach(b => b.classList.remove('active'));
+  const mobileBtn = document.querySelector(`#mobile-nav .nav-item[onclick*="${panelId}"]`);
+  if (mobileBtn) mobileBtn.classList.add('active');
   if (panelId === 'panel-palpites') {
     preencherSelectPalpites();
     preencherSelectParticipantes();
