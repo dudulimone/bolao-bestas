@@ -1085,6 +1085,9 @@ function renderizarJogos() {
     fases[j.fase].push(j);
   });
 
+  // Ordena os jogos dentro de cada fase por data/hora
+  Object.values(fases).forEach(lista => lista.sort((a, b) => a.ts - b.ts));
+
   Object.entries(fases).forEach(([fase, lista]) => {
     container.innerHTML += `<div class="section-label">${fase}</div>`;
     lista.forEach(jogo => {
@@ -1311,7 +1314,7 @@ function preencherSelectGalera() {
     return agora >= fecha;
   });
 
-  [...fechados, ...futuros].forEach(j => {
+  [...fechados, ...futuros].sort((a, b) => a.ts - b.ts).forEach(j => {
     sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2}</option>`;
   });
 }

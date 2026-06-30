@@ -556,7 +556,7 @@
             <div class="form-row"><label>Time 2</label><input type="text" id="nova-time2" placeholder="Argentina"></div>
             <div class="form-row"><label>Data/hora do jogo (horário Brasília)</label><input type="datetime-local" id="nova-ts"></div>
             <div class="form-row">
-              <label>Fechamento manual <span style="color:var(--gray);font-weight:400">(opcional — padrão: 3h antes do jogo)</span></label>
+              <label>Fechamento manual <span style="color:var(--gray);font-weight:400">(opcional — padrão: 1h antes do jogo)</span></label>
               <input type="datetime-local" id="nova-fecha">
             </div>
           </div>
@@ -907,7 +907,8 @@ async function resetPin(userKey, nome) {
 function preencherSelectJogos() {
   const sel = document.getElementById('sel-jogo');
   sel.innerHTML = '<option value="">— selecione —</option>';
-  todosJogos.forEach(j => {
+  const ordenados = [...todosJogos].sort((a, b) => a.ts - b.ts);
+  ordenados.forEach(j => {
     sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2} (${j.data})</option>`;
   });
 }
@@ -1189,12 +1190,16 @@ async function carregarFases() {
   const cfgJogos = (await fbGet('config/jogos')) || {};
   const agora = Date.now();
 
-  container.innerHTML = JOGOS_16AVOS.map(j => {
+  const todosOrdenados = [...todosJogos].sort((a, b) => a.ts - b.ts);
+
+  container.innerHTML = todosOrdenados.map(j => {
     const cfg = cfgJogos[j.id] || {};
-    const aberto = cfg.status === 'aberto' || (!cfg.status && agora < j.ts - 3*3600000);
+    const fechaCalc = j.fecha_em ? j.fecha_em : j.ts - 1*3600000;
+    const aberto = cfg.status === 'aberto' || (!cfg.status && agora < fechaCalc);
     return `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);font-size:13px">
         <div>
+          <span style="color:var(--gold);font-size:10px;letter-spacing:1px;margin-right:8px">${j.fase}</span>
           <strong>${j.time1} × ${j.time2}</strong>
           <span style="color:var(--gray);font-size:11px;margin-left:8px">${j.data}</span>
         </div>
@@ -1298,7 +1303,7 @@ function preencherEditJogoSelect() {
   if (!sel) return;
   const atual = sel.value;
   // Só jogos de fases futuras (não os 16 avos fixos)
-  const jogosFuturos = todosJogos.filter(j => j.fase !== '16 Avos');
+  const jogosFuturos = todosJogos.filter(j => j.fase !== '16 Avos').sort((a, b) => a.ts - b.ts);
   sel.innerHTML = '<option value="">— selecione —</option>';
   jogosFuturos.forEach(j => {
     sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2}</option>`;
@@ -1420,7 +1425,8 @@ function preencherSelectPalpites() {
   const sel = document.getElementById('sel-jogo-palpites');
   if (!sel) return;
   sel.innerHTML = '<option value="">— selecione um jogo —</option>';
-  todosJogos.forEach(j => {
+  const ordenados = [...todosJogos].sort((a, b) => a.ts - b.ts);
+  ordenados.forEach(j => {
     sel.innerHTML += `<option value="${j.id}">${j.fase} — ${j.time1} × ${j.time2} (${j.data})</option>`;
   });
 }
