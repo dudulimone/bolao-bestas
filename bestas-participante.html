@@ -437,6 +437,25 @@
   }
   .alerta-pagamento strong { color: #ff6b6b; }
 
+  /* ENCERRADOS TOGGLE */
+  .encerrados-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 16px;
+    margin-top: 16px;
+    cursor: pointer;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 14px;
+    letter-spacing: 1.5px;
+    color: var(--gray);
+    transition: background .15s;
+  }
+  .encerrados-toggle:hover { background: #272727; color: var(--white); }
+
   /* SECTION DIVIDER */
   .section-label {
     font-family: 'Bebas Neue', sans-serif;
@@ -1078,51 +1097,67 @@ function renderizarJogos() {
 
   container.innerHTML = '';
 
-  // Agrupa por fase
-  const fases = {};
-  jogos.forEach(j => {
-    if (!fases[j.fase]) fases[j.fase] = [];
-    fases[j.fase].push(j);
-  });
+  // Separa abertos de fechados
+  const abertos = jogos.filter(j => jogoAberto(j)).sort((a, b) => a.ts - b.ts);
+  const fechados = jogos.filter(j => !jogoAberto(j)).sort((a, b) => a.ts - b.ts);
 
-  // Ordena os jogos dentro de cada fase por data/hora
-  Object.values(fases).forEach(lista => lista.sort((a, b) => a.ts - b.ts));
+  function renderCard(jogo) {
+    const palpite = (palpitesUser[jogo.id]) || null;
+    const aberto = jogoAberto(jogo);
+    const temPalpite = palpite && palpite.gols1 !== undefined;
 
-  Object.entries(fases).forEach(([fase, lista]) => {
-    container.innerHTML += `<div class="section-label">${fase}</div>`;
-    lista.forEach(jogo => {
-      const palpite = (palpitesUser[jogo.id]) || null;
-      const aberto = jogoAberto(jogo);
-      const temPalpite = palpite && palpite.gols1 !== undefined;
+    let statusClass = aberto ? 'aberto' : 'fechado';
+    let statusLabel = aberto ? 'ABERTA' : 'ENCERRADA';
+    if (temPalpite && aberto) { statusClass = 'apostado'; statusLabel = 'APOSTADO'; }
+    if (temPalpite && !aberto) { statusClass = 'apostado'; statusLabel = 'APOSTADO'; }
 
-      let statusClass = aberto ? 'aberto' : 'fechado';
-      let statusLabel = aberto ? 'ABERTA' : 'ENCERRADA';
-      if (temPalpite && aberto) { statusClass = 'apostado'; statusLabel = 'APOSTADO'; }
-      if (temPalpite && !aberto) { statusClass = 'apostado'; statusLabel = 'APOSTADO'; }
+    const g1 = temPalpite && palpite.gols1 !== undefined ? palpite.gols1 : '';
+    const g2 = temPalpite && palpite.gols2 !== undefined ? palpite.gols2 : '';
+    const pen = temPalpite ? (palpite.penalti || '') : '';
 
-      const g1 = temPalpite && palpite.gols1 !== undefined ? palpite.gols1 : '';
-      const g2 = temPalpite && palpite.gols2 !== undefined ? palpite.gols2 : '';
-      const pen = temPalpite ? (palpite.penalti || '') : '';
+    return `
+      <div class="jogo-card ${statusClass}" id="card-${jogo.id}">
+        <div class="jogo-header">
+          <span class="jogo-rodada">${jogo.fase}</span>
+          <span class="jogo-status status-${statusClass}">${statusLabel}</span>
+        </div>
+        <div class="jogo-data">📅 ${jogo.data} &nbsp;·&nbsp; Fecha ${formatarFechamento(jogo.ts)}</div>
+        <div class="jogo-times">
+          <span class="time-nome">${jogo.time1}</span>
+          <span class="vs-box">VS</span>
+          <span class="time-nome right">${jogo.time2}</span>
+        </div>
+        ${aberto ? renderInputPlacar(jogo, g1, g2, pen) : renderPalpiteFeito(palpite, jogo)}
+      </div>`;
+  }
 
-      container.innerHTML += `
-        <div class="jogo-card ${statusClass}" id="card-${jogo.id}">
-          <div class="jogo-header">
-            <span class="jogo-rodada">${jogo.fase}</span>
-            <span class="jogo-status status-${statusClass}">${statusLabel}</span>
-          </div>
-          <div class="jogo-data">📅 ${jogo.data} &nbsp;·&nbsp; Fecha ${formatarFechamento(jogo.ts)}</div>
-          <div class="jogo-times">
-            <span class="time-nome">${jogo.time1}</span>
-            <span class="vs-box">VS</span>
-            <span class="time-nome right">${jogo.time2}</span>
-          </div>
-          ${aberto ? renderInputPlacar(jogo, g1, g2, pen) : renderPalpiteFeito(palpite, jogo)}
-        </div>`;
+  // Jogos abertos primeiro, agrupados por fase
+  if (abertos.length > 0) {
+    const fasesAbertas = {};
+    abertos.forEach(j => {
+      if (!fasesAbertas[j.fase]) fasesAbertas[j.fase] = [];
+      fasesAbertas[j.fase].push(j);
     });
-  });
+    Object.entries(fasesAbertas).forEach(([fase, lista]) => {
+      container.innerHTML += `<div class="section-label">${fase}</div>`;
+      lista.forEach(j => container.innerHTML += renderCard(j));
+    });
+  } else {
+    container.innerHTML += `<div style="font-size:13px;color:var(--gray);text-align:center;padding:16px 0">Nenhuma aposta em aberto no momento.</div>`;
+  }
 
-  // Adiciona listeners de pênalti
-  JOGOS_16AVOS.forEach(j => {
+  // Jogos fechados — seção colapsável
+  if (fechados.length > 0) {
+    container.innerHTML += `
+      <div class="encerrados-toggle" id="encerrados-toggle" onclick="toggleEncerrados()">
+        <span>🔒 Jogos encerrados (${fechados.length})</span>
+        <span id="encerrados-arrow">▼</span>
+      </div>
+      <div id="encerrados-content" style="display:none"></div>`;
+  }
+
+  // Adiciona listeners de pênalti (todos os jogos, abertos e fechados)
+  jogos.forEach(j => {
     const i1 = document.getElementById(`g1-${j.id}`);
     const i2 = document.getElementById(`g2-${j.id}`);
     if (i1 && i2) {
@@ -1143,6 +1178,41 @@ function renderizarJogos() {
       }
     }
   });
+
+  // Preenche o conteúdo da seção de encerrados (agrupado por fase)
+  const contentDiv = document.getElementById('encerrados-content');
+  if (contentDiv) {
+    let html = '';
+    const fasesFechadas = {};
+    fechados.forEach(j => {
+      if (!fasesFechadas[j.fase]) fasesFechadas[j.fase] = [];
+      fasesFechadas[j.fase].push(j);
+    });
+    Object.entries(fasesFechadas).forEach(([fase, lista]) => {
+      html += `<div class="section-label">${fase}</div>`;
+      lista.forEach(j => html += renderCard(j));
+    });
+    contentDiv.innerHTML = html;
+
+    // Listeners de pênalti dos jogos fechados (reaplica pois foram inseridos depois)
+    fechados.forEach(j => {
+      const i1 = document.getElementById(`g1-${j.id}`);
+      const i2 = document.getElementById(`g2-${j.id}`);
+      if (i1 && i2) {
+        const check = () => checkEmpate(j.id);
+        i1.addEventListener('input', check);
+        i2.addEventListener('input', check);
+      }
+    });
+  }
+}
+
+function toggleEncerrados() {
+  const content = document.getElementById('encerrados-content');
+  const arrow = document.getElementById('encerrados-arrow');
+  const isOpen = content.style.display !== 'none';
+  content.style.display = isOpen ? 'none' : 'block';
+  arrow.textContent = isOpen ? '▼' : '▲';
 }
 
 function renderInputPlacar(jogo, g1, g2, pen) {
