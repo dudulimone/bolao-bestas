@@ -1039,40 +1039,48 @@ async function calcularPontosJogo(jogoId, resultado, jogo) {
     let pontos = 0;
     let tipoRes = 'errou';
 
-    const vencedorReal = resultado.gols1 > resultado.gols2 ? resultado.time1
-      : resultado.gols2 > resultado.gols1 ? resultado.time2
-      : resultado.penalti; // quem avançou nos pênaltis
-
-    const vencedorPalpite = p.gols1 > p.gols2 ? p.time1
-      : p.gols2 > p.gols1 ? p.time2
-      : p.penalti;
-
-    const acertouQuemPassou = vencedorPalpite === vencedorReal;
-    const acertouGolsVencedor = (resultado.gols1 > resultado.gols2 && p.gols1 === resultado.gols1 && p.gols1 > p.gols2) ||
-                                (resultado.gols2 > resultado.gols1 && p.gols2 === resultado.gols2 && p.gols2 > p.gols1) ||
-                                (resultado.gols1 === resultado.gols2); // empate: placar do vencedor não se aplica da mesma forma
+    const foiPenaltis = resultado.gols1 === resultado.gols2;
     const acertouExato = p.gols1 === resultado.gols1 && p.gols2 === resultado.gols2;
 
-    if (acertouExato) {
-      pontos = 10;
-      tipoRes = 'exato';
-    } else if (acertouQuemPassou) {
-      // Verifica se acertou o placar do lado do vencedor
-      const venceu1 = resultado.gols1 > resultado.gols2;
-      const venceu2 = resultado.gols2 > resultado.gols1;
-      const palvenceu1 = p.gols1 > p.gols2;
-      const palvenceu2 = p.gols2 > p.gols1;
+    const vencedorReal = foiPenaltis ? resultado.penalti
+      : resultado.gols1 > resultado.gols2 ? resultado.time1 : resultado.time2;
 
-      let acertouPlacarVencedor = false;
-      if (venceu1 && palvenceu1 && p.gols1 === resultado.gols1) acertouPlacarVencedor = true;
-      if (venceu2 && palvenceu2 && p.gols2 === resultado.gols2) acertouPlacarVencedor = true;
+    const empatouNoPalpite = p.gols1 === p.gols2;
+    const vencedorPalpite = empatouNoPalpite ? p.penalti
+      : p.gols1 > p.gols2 ? p.time1 : p.time2;
 
-      if (acertouPlacarVencedor) {
-        pontos = 5;
-        tipoRes = 'vencedor';
+    const acertouQuemPassou = vencedorPalpite === vencedorReal;
+
+    if (foiPenaltis) {
+      // Jogo foi para pênaltis
+      if (acertouExato && acertouQuemPassou) {
+        pontos = 10; tipoRes = 'exato';
+      } else if (acertouExato && !acertouQuemPassou) {
+        pontos = 5; tipoRes = 'vencedor';
+      } else if (!acertouExato && acertouQuemPassou) {
+        pontos = 3; tipoRes = 'quem_passa';
       } else {
-        pontos = 3;
-        tipoRes = 'quem_passa';
+        pontos = 0; tipoRes = 'errou';
+      }
+    } else {
+      // Jogo teve vencedor no tempo normal/prorrogação
+      if (acertouExato) {
+        pontos = 10; tipoRes = 'exato';
+      } else if (acertouQuemPassou) {
+        // Verifica se acertou o placar do lado do vencedor
+        const venceu1 = resultado.gols1 > resultado.gols2;
+        const palvenceu1 = p.gols1 > p.gols2;
+        let acertouPlacarVencedor = false;
+        if (venceu1 && palvenceu1 && p.gols1 === resultado.gols1) acertouPlacarVencedor = true;
+        if (!venceu1 && !palvenceu1 && p.gols2 === resultado.gols2) acertouPlacarVencedor = true;
+
+        if (acertouPlacarVencedor) {
+          pontos = 5; tipoRes = 'vencedor';
+        } else {
+          pontos = 3; tipoRes = 'quem_passa';
+        }
+      } else {
+        pontos = 0; tipoRes = 'errou';
       }
     }
 
