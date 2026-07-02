@@ -1156,7 +1156,7 @@ function renderizarJogos() {
       <div id="encerrados-content" style="display:none"></div>`;
   }
 
-  // Adiciona listeners de pênalti (todos os jogos, abertos e fechados)
+  // Adiciona listeners de pênalti (todos os jogos abertos)
   jogos.forEach(j => {
     const i1 = document.getElementById(`g1-${j.id}`);
     const i2 = document.getElementById(`g2-${j.id}`);
@@ -1164,20 +1164,23 @@ function renderizarJogos() {
       const check = () => checkEmpate(j.id);
       i1.addEventListener('input', check);
       i2.addEventListener('input', check);
-      // Restore state
-      const p = palpitesUser[j.id];
-      if (p && p.penalti) {
-        setTimeout(() => {
-          const row = document.getElementById(`pen-row-${j.id}`);
-          if (row) {
-            row.classList.add('show');
-            const btn = row.querySelector(`[data-pen="${p.penalti}"]`);
-            if (btn) btn.classList.add('selected');
-          }
-        }, 50);
-      }
     }
   });
+
+  // Restore estado de pênalti — depois de todos os cards estarem no DOM
+  setTimeout(() => {
+    jogos.forEach(j => {
+      const p = palpitesUser[j.id];
+      if (p && p.penalti) {
+        const row = document.getElementById(`pen-row-${j.id}`);
+        if (row) {
+          row.classList.add('show');
+          const btn = row.querySelector(`[data-pen="${p.penalti}"]`);
+          if (btn) btn.classList.add('selected');
+        }
+      }
+    });
+  }, 150);
 
   // Preenche o conteúdo da seção de encerrados (agrupado por fase)
   const contentDiv = document.getElementById('encerrados-content');
@@ -1283,8 +1286,13 @@ async function salvarPalpiteJogo(jogoId, time1, time2) {
 
   let penalti = null;
   if (g1 === g2) {
-    const btnSel = document.querySelector(`#pen-row-${jogoId} .penalti-btn.selected`);
-    if (!btnSel) return toast('Empate — escolha quem avança nos pênaltis!', true);
+    const penRow = document.getElementById(`pen-row-${jogoId}`);
+    const btnSel = penRow ? penRow.querySelector('.penalti-btn.selected') : null;
+    if (!btnSel) {
+      // Garante que o row está visível antes de mostrar o erro
+      if (penRow) penRow.classList.add('show');
+      return toast('Empate — escolha quem avança nos pênaltis!', true);
+    }
     penalti = btnSel.dataset.pen;
   }
 
