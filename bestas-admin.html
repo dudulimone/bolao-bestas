@@ -1128,11 +1128,23 @@ async function recalcularRanking() {
       });
     });
 
-    // Pontos de campeão/vice
     // Calcula campeão/vice a partir do resultado real da final
+    // Detecta pelo ID 'final' OU pela fase 'Final'
     let campeaoFinal = null;
     let viceFinal = null;
-    const resFinal = res['final'];
+
+    // Primeiro tenta pelo ID 'final'
+    let resFinal = res['final'];
+
+    // Se não achou, procura pelo jogo com fase 'Final' no Firebase
+    if (!resFinal) {
+      const jogosFirebase = (await fbGet('config/jogos_fases')) || {};
+      const jogoFinal = Object.values(jogosFirebase).find(j =>
+        j.fase && j.fase.toLowerCase() === 'final'
+      );
+      if (jogoFinal) resFinal = res[jogoFinal.id];
+    }
+
     if (resFinal) {
       if (resFinal.gols1 > resFinal.gols2) {
         campeaoFinal = resFinal.time1;
@@ -1141,7 +1153,6 @@ async function recalcularRanking() {
         campeaoFinal = resFinal.time2;
         viceFinal = resFinal.time1;
       } else if (resFinal.penalti) {
-        // Empate — quem avançou nos pênaltis é o campeão
         campeaoFinal = resFinal.penalti;
         viceFinal = resFinal.penalti === resFinal.time1 ? resFinal.time2 : resFinal.time1;
       }
