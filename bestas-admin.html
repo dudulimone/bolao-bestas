@@ -1129,8 +1129,23 @@ async function recalcularRanking() {
     });
 
     // Pontos de campeão/vice
-    const campeaoFinal = res['final']?.vencedor || null; // pode não ter ainda
-    const viceFinal = res['final']?.vice || null;
+    // Calcula campeão/vice a partir do resultado real da final
+    let campeaoFinal = null;
+    let viceFinal = null;
+    const resFinal = res['final'];
+    if (resFinal) {
+      if (resFinal.gols1 > resFinal.gols2) {
+        campeaoFinal = resFinal.time1;
+        viceFinal = resFinal.time2;
+      } else if (resFinal.gols2 > resFinal.gols1) {
+        campeaoFinal = resFinal.time2;
+        viceFinal = resFinal.time1;
+      } else if (resFinal.penalti) {
+        // Empate — quem avançou nos pênaltis é o campeão
+        campeaoFinal = resFinal.penalti;
+        viceFinal = resFinal.penalti === resFinal.time1 ? resFinal.time2 : resFinal.time1;
+      }
+    }
 
     Object.entries(palpites || {}).forEach(([uk, up]) => {
       if (!ranking[uk]) return;
